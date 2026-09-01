@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>光斑均匀度与瞳孔震荡原理演示</title>
+<style>
+  body {
+    background-color: #0f172a;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  .card {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    max-width: 580px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  button {
+    padding: 10px 18px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #334155;
+    color: #94a3b8;
+  }
+
+  button.active {
+    background: #38bdf8;
+    color: #0f172a;
+    border-color: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  }
+
+  .demo-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .panel {
+    background: #090d16;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel-title {
+    font-size: 13px;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* 模拟光斑投射区域 */
+  .beam-projection {
+    position: relative;
+    width: 100%;
+    height: 130px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.5s ease;
+    overflow: hidden;
+  }
+
+  /* 断层光斑（斑马纹/中心极亮） */
+  .bad-mode .beam-projection {
+    background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(254,240,138,0.9) 20%, rgba(15,23,42,0.95) 60%);
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  }
+
+  /* 均匀光斑（过渡自然） */
+  .good-mode .beam-projection {
+    background: radial-gradient(ellipse at center, rgba(254,240,138,0.7) 0%, rgba(254,240,138,0.45) 50%, rgba(254,240,138,0.15) 85%);
+  }
+
+  /* 扫视视线游走线 */
+  .scan-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 8px #38bdf8;
+    animation: scan 2s infinite alternate ease-in-out;
+  }
+
+  @keyframes scan {
+    0% { left: 10%; }
+    100% { left: 90%; }
+  }
+
+  /* 眼睛与瞳孔模型 */
+  .eye-container {
+    position: relative;
+    width: 90px;
+    height: 50px;
+    background: #f8fafc;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+
+  .iris {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    background: #0284c7;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pupil {
+    width: 16px;
+    height: 16px;
+    background: #0f172a;
+    border-radius: 50%;
+    transition: transform 0.1s linear;
+  }
+
+  /* 瞳孔频繁剧烈收缩/舒张动画 */
+  .bad-mode .pupil {
+    animation: pupil-oscillation 2s infinite alternate ease-in-out;
+  }
+
+  /* 均匀模式下瞳孔保持稳定柔和状态 */
+  .good-mode .pupil {
+    animation: none;
+    transform: scale(1);
+  }
+
+  @keyframes pupil-oscillation {
+    0% { transform: scale(1.6); }   /* 进入边缘暗区，瞳孔放大增光 */
+    50% { transform: scale(0.4); }  /* 进入中心极亮区，瞳孔剧烈收缩 */
+    100% { transform: scale(1.6); }  /* 移回暗区，再次剧烈放大 */
+  }
+
+  /* 眼肌负荷进度条 */
+  .muscle-load {
+    width: 100%;
+    height: 6px;
+    background: #334155;
+    border-radius: 3px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .muscle-load-fill {
+    height: 100%;
+    width: 90%;
+    background: #ef4444;
+    transition: width 0.5s ease, background-color 0.5s ease;
+  }
+
+  .good-mode .muscle-load-fill {
+    width: 15%;
+    background: #10b981;
+  }
+
+  /* 文本解释 */
+  .info-box {
+    padding: 14px;
+    background: #0f172a;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #cbd5e1;
+    text-align: left;
+    border: 1px solid #334155;
+  }
+
+  .info-title {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="controls">
+    <button id="btn-bad" class="active" onclick="switchMode('bad')">断层光斑（高频瞳孔震荡）</button>
+    <button id="btn-good" onclick="switchMode('good')">均匀铺路（瞳孔稳定从容）</button>
+  </div>
+
+  <div class="demo-container">
+    <div class="panel bad-mode" id="beam-panel">
+      <div class="panel-title">路面光斑梯度照度</div>
+      <div class="beam-projection">
+        <div class="scan-line"></div>
+      </div>
+      <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;" id="beam-text">
+        中心极亮 / 四周明暗断层
+      </div>
+    </div>
+
+    <div class="panel bad-mode" id="eye-panel">
+      <div class="panel-title">瞳孔状态与眼肌肉负荷</div>
+      <div class="eye-container">
+        <div class="iris">
+          <div class="pupil"></div>
+        </div>
+      </div>
+      <div class="muscle-load">
+        <div class="muscle-load-fill" id="muscle-fill"></div>
+      </div>
+      <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;" id="muscle-text">
+        眼肌肉状态：高频疲劳收缩
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <div class="info-title" id="info-title" style="color: #ef4444;">劣质光斑：亮暗交替引发“光适应震荡”</div>
+    <div id="info-desc">
+      当光斑存在过强的明暗断层时，视线在扫视路面过程中，瞳孔括约肌与开大肌被迫以高频率进行大角度的缩放调节。这种持续的强刺激运动会快速耗尽眼肌能量，引发眼部酸胀感与疲劳。
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchMode(mode) {
+    const beamPanel = document.getElementById('beam-panel');
+    const eyePanel = document.getElementById('eye-panel');
+    const btnBad = document.getElementById('btn-bad');
+    const btnGood = document.getElementById('btn-good');
+    const beamText = document.getElementById('beam-text');
+    const muscleText = document.getElementById('muscle-text');
+    const infoTitle = document.getElementById('info-title');
+    const infoDesc = document.getElementById('info-desc');
+
+    if (mode === 'bad') {
+      beamPanel.className = 'panel bad-mode';
+      eyePanel.className = 'panel bad-mode';
+      btnBad.className = 'active';
+      btnGood.className = '';
+      
+      beamText.textContent = '中心极亮 / 四周明暗断层';
+      muscleText.textContent = '眼肌肉状态：高频疲劳收缩';
+      infoTitle.textContent = '劣质光斑：亮暗交替引发“光适应震荡”';
+      infoTitle.style.color = '#ef4444';
+      infoDesc.textContent = '当光斑存在过强的明暗断层时，视线在扫视路面过程中，瞳孔括约肌与开大肌被迫以高频率进行大角度的缩放调节。这种持续的强刺激运动会快速耗尽眼肌能量，引发眼部酸胀感与疲劳。';
+    } else {
+      beamPanel.className = 'panel good-mode';
+      eyePanel.className = 'panel good-mode';
+      btnBad.className = '';
+      btnGood.className = 'active';
+
+      beamText.textContent = '平滑照度梯度 / 柔和自然过渡';
+      muscleText.textContent = '眼肌肉状态：保持稳定放松';
+      infoTitle.textContent = '均匀车灯：维持瞳孔稳定，延缓视觉疲劳';
+      infoTitle.style.color = '#10b981';
+      infoDesc.textContent = '优质车灯具备平滑的照度梯度，中心与边缘亮度自然过渡。瞳孔在扫视整个视界时无需频繁剧烈收缩，有效保持眼肌松弛，显著延长舒适驾驶时间。';
+    }
+  }
+</script>
+
+</body>
+</html>
