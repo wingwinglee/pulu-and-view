@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>横向铺路宽度与有效视野关联演示</title>
+<style>
+  body {
+    background-color: #0f172a;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  .card {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    max-width: 620px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  button {
+    padding: 10px 18px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #334155;
+    color: #94a3b8;
+  }
+
+  button.active {
+    background: #38bdf8;
+    color: #0f172a;
+    border-color: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  }
+
+  /* 核心视角对比模拟器 */
+  .viewport-container {
+    position: relative;
+    width: 100%;
+    height: 360px;
+    background: #090d16;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #334155;
+  }
+
+  /* 双车道道路 */
+  .road {
+    position: absolute;
+    inset: 0;
+  }
+
+  .curb {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    background: #334155;
+  }
+  .curb-l { left: 60px; border-right: 2px dashed #475569; }
+  .curb-r { right: 60px; border-left: 2px dashed #475569; }
+
+  .lane-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 4px;
+    transform: translateX(-50%);
+    background: linear-gradient(to bottom, #475569 60%, transparent 40%);
+    background-size: 100% 30px;
+  }
+
+  /* 两侧盲区目标（行人/障碍物） */
+  .obstacle {
+    position: absolute;
+    top: 100px;
+    font-size: 26px;
+    z-index: 5;
+    transition: all 0.5s ease;
+    opacity: 0.15;
+    filter: brightness(0.1) blur(2px);
+  }
+  .obstacle-left { left: 15px; }
+  .obstacle-right { right: 15px; }
+
+  .obstacle.detected {
+    opacity: 1;
+    filter: brightness(1) drop-shadow(0 0 10px #fef08a);
+    transform: scale(1.15);
+  }
+
+  /* 车灯光束物理范围 */
+  .beam {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .scene-narrow .beam {
+    width: 120px;
+    height: 250px;
+    background: radial-gradient(ellipse at bottom, rgba(254,240,138,0.85) 0%, rgba(254,240,138,0) 80%);
+    clip-path: polygon(42% 100%, 58% 100%, 80% 0, 20% 0);
+  }
+
+  .scene-wide .beam {
+    width: 540px;
+    height: 250px;
+    background: radial-gradient(ellipse at bottom, rgba(254,240,138,0.9) 0%, rgba(254,240,138,0) 85%);
+    clip-path: polygon(46% 100%, 54% 100%, 100% 0, 0 0);
+  }
+
+  /* 有效视野扇区 (FOV Sector) */
+  .fov-sector {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    transition: all 0.6s ease;
+    pointer-events: none;
+    z-index: 3;
+    border-radius: 50% 50% 0 0;
+  }
+
+  .scene-narrow .fov-sector {
+    width: 140px;
+    height: 230px;
+    background: rgba(239, 68, 68, 0.15);
+    border-top: 2px dashed #ef4444;
+  }
+
+  .scene-wide .fov-sector {
+    width: 520px;
+    height: 230px;
+    background: rgba(16, 185, 129, 0.15);
+    border-top: 2px dashed #10b981;
+  }
+
+  /* 视角角度标注 */
+  .fov-tag {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10;
+    transition: all 0.3s;
+  }
+  .scene-narrow .fov-tag { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; }
+  .scene-wide .fov-tag { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid #10b981; }
+
+  /* 驾驶员视线焦点（动态移动） */
+  .gaze-point {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 8;
+    transition: background-color 0.3s;
+  }
+
+  .scene-narrow .gaze-point {
+    background: #ef4444;
+    box-shadow: 0 0 12px #ef4444;
+    animation: rapid-scan 0.8s infinite alternate ease-in-out;
+  }
+
+  .scene-wide .gaze-point {
+    background: #10b981;
+    box-shadow: 0 0 12px #10b981;
+    animation: calm-gaze 3s infinite alternate ease-in-out;
+    top: 110px !important;
+  }
+
+  @keyframes rapid-scan {
+    0% { top: 100px; left: 15%; }
+    50% { top: 120px; left: 50%; }
+    100% { top: 100px; left: 85%; }
+  }
+
+  @keyframes calm-gaze {
+    0% { left: 45%; }
+    100% { left: 55%; }
+  }
+
+  /* 车头模型 */
+  .car-body {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 50px;
+    background: #334155;
+    border-radius: 10px 10px 0 0;
+    border: 2px solid #64748b;
+    z-index: 6;
+  }
+
+  /* 数据对比仪表盘 */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+
+  .metric-card {
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+  }
+  .metric-label { font-size: 11px; color: #94a3b8; }
+  .metric-val { font-size: 15px; font-weight: bold; margin-top: 4px; transition: color 0.3s; }
+
+  .info-box {
+    padding: 14px;
+    background: #0f172a;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #cbd5e1;
+    text-align: left;
+    border: 1px solid #334155;
+  }
+  .info-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="controls">
+    <button id="btn-narrow" class="active" onclick="setMode('narrow')">窄光模式（窄视野/高频扫视）</button>
+    <button id="btn-wide" onclick="setMode('wide')">宽光铺路（宽视野/态势感知）</button>
+  </div>
+
+  <div id="scene" class="viewport-container scene-narrow">
+    <div class="road">
+      <div class="curb curb-l"></div>
+      <div class="curb curb-r"></div>
+      <div class="lane-line"></div>
+    </div>
+
+    <div class="fov-tag" id="fov-tag">有效视野夹角：~35°（受限于光束）</div>
+
+    <div class="obstacle obstacle-left" id="obs-left">🚶 (行人)</div>
+    <div class="obstacle obstacle-right" id="obs-right">⚠️ (落石)</div>
+
+    <div class="beam"></div>
+    <div class="fov-sector"></div>
+
+    <div class="gaze-point" id="gaze"></div>
+    <div class="car-body"></div>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">横向铺路宽度</div>
+      <div class="metric-val" id="val-width" style="color: #ef4444;">~12 米</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">周边视觉感知率</div>
+      <div class="metric-val" id="val-sense" style="color: #ef4444;">25% (盲区大)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">眼肌调节负荷</div>
+      <div class="metric-val" id="val-load" style="color: #ef4444;">极高 (强迫扫视)</div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <div class="info-title" id="info-title" style="color: #ef4444;">窄光约束：视野受限，迫使眼肌高频疲劳运转</div>
+    <div id="info-desc">
+      窄光型仅能照亮正面车道，盲区占比高达 75%。由于人眼的“周边视觉”缺乏光线激活，驾驶员无法利用视野边缘感知两侧动态，瞳孔视线（红点）被迫以 120° 大角度高频左右扫视，导致眼外肌与睫状肌极易酸胀疲劳。
+    </div>
+  </div>
+</div>
+
+<script>
+  function setMode(mode) {
+    const scene = document.getElementById('scene');
+    const btnNarrow = document.getElementById('btn-narrow');
+    const btnWide = document.getElementById('btn-wide');
+    const obsLeft = document.getElementById('obs-left');
+    const obsRight = document.getElementById('obs-right');
+    
+    const fovTag = document.getElementById('fov-tag');
+    const valWidth = document.getElementById('val-width');
+    const valSense = document.getElementById('val-sense');
+    const valLoad = document.getElementById('val-load');
+    
+    const infoTitle = document.getElementById('info-title');
+    const infoDesc = document.getElementById('info-desc');
+
+    if (mode === 'narrow') {
+      scene.className = 'viewport-container scene-narrow';
+      btnNarrow.className = 'active';
+      btnWide.className = '';
+      
+      obsLeft.classList.remove('detected');
+      obsRight.classList.remove('detected');
+
+      fovTag.textContent = '有效视野夹角：~35°（受限于窄光束）';
+      valWidth.textContent = '~12 米';
+      valWidth.style.color = '#ef4444';
+      valSense.textContent = '25% (两侧盲区)';
+      valSense.style.color = '#ef4444';
+      valLoad.textContent = '极高 (强迫扫视)';
+      valLoad.style.color = '#ef4444';
+
+      infoTitle.textContent = '窄光约束：视野受限，迫使眼肌高频疲劳运转';
+      infoTitle.style.color = '#ef4444';
+      infoDesc.textContent = '窄光型仅能照亮正面车道，盲区占比高达 75%。由于人眼的“周边视觉”缺乏光线激活，驾驶员无法利用视野边缘感知两侧动态，视线焦点（红点）被迫以大角度高频左右扫视，导致眼肌极易酸胀疲劳。';
+    } else {
+      scene.className = 'viewport-container scene-wide';
+      btnNarrow.className = '';
+      btnWide.className = 'active';
+
+      obsLeft.classList.add('detected');
+      obsRight.classList.add('detected');
+
+      fovTag.textContent = '有效视野夹角：~110°（全车道态势感知）';
+      valWidth.textContent = '~35 米';
+      valWidth.style.color = '#10b981';
+      valSense.textContent = '95% (全面覆盖)';
+      valSense.style.color = '#10b981';
+      valLoad.textContent = '极低 (轻松定睛)';
+      valLoad.style.color = '#10b981';
+
+      infoTitle.textContent = '宽光物理保障：拓宽有效视野，实现轻负荷态势感知';
+      infoTitle.style.color = '#10b981';
+      infoDesc.textContent = '宽幅光带主动将有效视野拓展至 110° 以上，完全照亮路牙与两侧障碍物。人眼通过“周边视觉”即可提前侦测边缘移动目标，注意力中心（绿点）得以稳定前移，眼球无需高频扫视，肌肉负荷显著降低。';
+    }
+  }
+</script>
+
+</body>
+</html>
